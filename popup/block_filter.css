@@ -1,0 +1,27 @@
+html, body {
+    width: 640;
+    height: 480;
+    margin: 0;
+    box-sizing: border-box;
+    border: 2px solid slategray;
+}
+
+p {
+    text-align: center;
+}
+
+
+#panel-content {
+    margin: 2em;
+    border: .5em solid #DDE4E9;
+    transition: background-color .2s ease-out;
+}
+
+#panel-content[contenteditable=true] {
+    background-color: white;
+    transition: background-color .2s ease-in;
+}
+
+[contenteditable]:focus {
+    outline: 0px solid transparent;
+}
