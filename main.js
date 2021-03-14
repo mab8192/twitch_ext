@@ -1,3 +1,4 @@
+
 // These are variables for Twitch elements related to chat.
 // We expose them here so changes can be easily made if Twitch changes them.
 twitchChatUlClass = ".chat-scrollable-area__message-container.tw-flex-grow-1.tw-pd-b-1";
@@ -7,26 +8,71 @@ twitchChatMessageContent = ".text-fragment";
 
 console.log("TwitchChatNLPFilter is running!");
 
-function get_filters(){
-    await browser.storage.local.get("tcnlpf").then((storedInfo) => {
-        console.log(storedInfo.tcnlpf)
-        return storedInfo.tcnlpf;
-    })
-}
+const THRESH = 0.25
+previous_messages = []
 
-console.log("pulling filters...")
-var filters = get_filters();
-
-console.log(filters)
-
-console.log("Filters are above ^^")
-
-function should_be_blocked(str){
-    if (str.toLowerCase().includes("w")){
-        return true;
+function get_k_grams(str, k){
+    kgrams = []
+    for(var i = 0; i < str.length - (k-1); i++){
+        kgram = str.substring(i, i+k)
+        if (kgrams.indexOf(kgram) > -1){
+            continue
+        } else {
+            kgrams.push(kgram)
+        }
     }
 
-    return false;
+    return kgrams
+}
+
+function jaccard(s1, s2){
+    var n_intersect = 0
+
+    for (gram1 of s1){
+        if (s2.indexOf(gram1) > -1){
+            n_intersect += 1
+        }
+    }
+
+    var n_union = s1.length + s2.length - n_intersect
+
+    return n_intersect/n_union
+
+}
+
+function should_be_blocked(str){
+
+    var kgrams = get_k_grams(str, 2)
+    console.log("kgrams message")
+    console.log(kgrams)
+
+    var block = false
+
+    var n_similar = 0
+    for (prev_msg_grams of previous_messages){
+        var sim = jaccard(kgrams, prev_msg_grams)
+        console.log("Previous message and sim")
+        console.log(prev_msg_grams)
+        console.log(sim)
+        if (sim > THRESH){
+            n_similar++;
+        }
+    }
+
+    console.log(previous_messages);
+    console.log(n_similar);
+
+    if (n_similar/previous_messages.length > THRESH){
+        block = true
+    }
+
+    previous_messages.push(kgrams)
+
+    if (previous_messages.length > 30){
+        previous_messages.shift();
+    }
+
+    return block;
 }
 
 function filter(chatMessage){
@@ -44,8 +90,15 @@ function filter(chatMessage){
 
     // Filter based on message content
     if (should_be_blocked(messageElement.html())){
-        chatMessage.remove()
-        console.log("Hid message: " + messageElement.html());
+        try{
+            console.log("Hiding message: " + messageElement.html());
+
+            // Just set the html to the empty string
+            // Calling .remove() causes the entire chat window to get deleted sometimes.
+            chatMessage.html("")
+        } catch {
+            console.log("failed to remove message")
+        }
     }
 }
 
@@ -74,8 +127,6 @@ function ChatFilter() {
 var config = {attributes: false, childList: true, characterData: false};
 
 var chatFilter = ChatFilter();
-
-var running = false;
 
 // The chat is dynamically loaded.
 // We need to wait until the page is done loading everything in order to be
